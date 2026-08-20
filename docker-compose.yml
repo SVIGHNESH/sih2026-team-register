@@ -1,0 +1,27 @@
+# Local Postgres for development only.
+# The port is bound to the loopback address, so nothing outside this machine
+# can reach it even if a firewall rule is missing.
+#   docker compose up -d
+#   DATABASE_URL=postgres://postgres:postgres@localhost:55432/sih2026
+#
+# For the server, see deploy/docker-compose.prod.yml, which runs the app and
+# the database together.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sih-pg
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sih2026
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - sih-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sih2026"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  sih-pg-data:

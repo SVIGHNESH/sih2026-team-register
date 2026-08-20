@@ -1,0 +1,16 @@
+# Caddy obtains and renews the certificate on its own, so long as DOMAIN
+# resolves to this instance and ports 80 and 443 are open to the world.
+{$DOMAIN} {
+	encode zstd gzip
+
+	# The passcode is sent over this connection, so tell browsers never to
+	# try plain HTTP for this host again.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+	}
+
+	reverse_proxy app:3000
+}

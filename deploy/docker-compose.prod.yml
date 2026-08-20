@@ -1,0 +1,62 @@
+# The whole register on one EC2 instance: the app, its database, and a
+# reverse proxy that gets its own certificate.
+#
+#   cd deploy && docker compose -f docker-compose.prod.yml up -d
+#
+# The database publishes no ports at all. It is reachable only over the private
+# compose network, so the only way in from outside is through Caddy on 80/443.
+name: team-register
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sih}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-sih2026}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sih} -d ${POSTGRES_DB:-sih2026}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      # The host is the service name; this never leaves the compose network,
+      # which is why sslmode=disable is right here and wrong anywhere else.
+      DATABASE_URL: postgres://${POSTGRES_USER:-sih}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-sih2026}?sslmode=disable
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in deploy/.env}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in deploy/.env}
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:
