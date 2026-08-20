@@ -63,6 +63,10 @@ app.get('/api/export.csv', h(async (_req, res) => {
 
 /* ---------- writing ---------- */
 
+app.post('/api/students', requireAdmin, h(async (req, res) => {
+  res.status(201).json(await repo.addStudent(req.body || {}));
+}));
+
 app.patch('/api/students/:id', requireAdmin, h(async (req, res) => {
   res.json({ state: await repo.patchStudent(Number(req.params.id), req.body || {}) });
 }));

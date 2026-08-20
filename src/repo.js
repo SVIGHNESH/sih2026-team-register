@@ -125,6 +125,28 @@ export async function patchStudent(studentId, patch) {
   });
 }
 
+// A student who never made it onto either sheet. They land in the pool, which
+// is where anyone without a team belongs, and can be moved from there.
+export async function addStudent(input) {
+  return tx(async c => {
+    await lock(c);
+    const name = String(input?.name || '').trim();
+    if (!name) throw new Conflict('A name is required.');
+    if (name.length > 120) throw new Conflict('That name is too long.');
+
+    const raw = input?.year;
+    const year = (raw === null || raw === undefined || raw === 0 || raw === '') ? null : Number(raw);
+    if (year !== null && ![1, 2, 3, 4].includes(year)) throw new Conflict('Year must be 1, 2, 3, 4 or blank.');
+
+    const { rows: [row] } = await c.query(
+      'INSERT INTO students (name, year, girl, branch) VALUES ($1, $2, $3, $4) RETURNING id',
+      [name, year, Boolean(input?.girl), String(input?.branch || '').trim().slice(0, 200)]
+    );
+    await audit(c, 'student.add', { studentId: row.id, name, year, girl: Boolean(input?.girl) });
+    return { state: await readState(c), id: row.id, message: `${name} added to the unassigned pool.` };
+  });
+}
+
 // to: a team id, 'pool', or 'delete'. Rules are re-checked here rather than
 // trusted from the browser, so a stale tab cannot push a team over a rule.
 export async function moveStudent(studentId, to, { force = false } = {}) {

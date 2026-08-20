@@ -13,8 +13,20 @@ What changed is where the register lives: it is a Postgres database instead of o
 - Shows the binding constraint on new teams live, and recomputes it whenever a rule is changed.
 - Proposes teams from the unassigned pool, anchored on one girl and guaranteed a first-year.
 - Imports either sheet as pasted CSV or a dropped file, and exports a CSV it can read back without loss.
+- Takes a late walk-in straight onto the register with **Add student**, without re-importing a sheet.
 
 The rules themselves are documented in `../TEAM-REGISTER.md`, which still describes what the register found in the current data.
+
+## Reading the interface
+
+Each team card carries five pips, one per rule, in the order size, 1, 2, 3, 4.
+A red pip is a broken rule, so twenty cards can be scanned without reading a word.
+Hovering a pip names the rule and what went wrong.
+
+The coloured spine down the left edge of a card repeats the same thing at a glance: green cleared, red flagged, blue proposed.
+Year of study is shown as a four-step scale from light to dark rather than four unrelated colours, and rose is used for nothing except the `W` marker.
+
+The interface follows the system light or dark setting, and the button in the top bar overrides it per browser.
 
 ## Running it locally
 
@@ -32,7 +44,7 @@ pnpm dev                             # http://localhost:3000
 `pnpm db:reset` reloads the shipped sheets over whatever is there.
 
 ```bash
-pnpm test        # 22 tests: the rules engine, and the API against a real database
+pnpm test        # 23 tests: the rules engine, and the API against a real database
 ```
 
 The API tests reset the register, so point `DATABASE_URL` at a scratch database when running them.
@@ -77,6 +89,7 @@ Seat 0 is the leader, and seats close up when anyone leaves.
 | GET | `/api/export.csv` | CSV written from what is stored |
 | GET | `/api/audit` | recent changes |
 | GET | `/api/health` | liveness, including the database |
+| POST | `/api/students` | add one student straight into the pool |
 | PATCH | `/api/students/:id` | year, girl marker, name |
 | POST | `/api/students/:id/move` | `{to: teamId \| "pool" \| "delete"}` |
 | POST | `/api/students/:id/lead` | make this student the leader |

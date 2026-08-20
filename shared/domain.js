@@ -130,19 +130,50 @@ export function counts(people) {
   return c;
 }
 
+// Every rule checked one at a time, so the interface can show which rule broke
+// rather than only that something did. validateTeam is built on this, and the
+// error text is identical either way.
+export function ruleChecks(team, R) {
+  const c = counts(team.people);
+  const out = [];
+  const add = (id, tag, label, ok, error) => out.push({ id, tag, label, ok, error: ok ? null : error });
+
+  add('size', '\u00a7', `Team size ${R.sizeMin === R.sizeMax ? R.sizeMin : `${R.sizeMin}-${R.sizeMax}`}`,
+    c.n >= R.sizeMin && c.n <= R.sizeMax,
+    c.n < R.sizeMin
+      ? `Short by ${R.sizeMin - c.n}. Team has ${c.n}, needs ${R.sizeMin}.`
+      : `Over by ${c.n - R.sizeMax}. Team has ${c.n}, limit is ${R.sizeMax}.`);
+
+  add('y4', '1', `Max ${R.y4max} from 4th year`, c[4] <= R.y4max,
+    `Rule 1: ${c[4]} fourth-year members, at most ${R.y4max} allowed.`);
+
+  add('y1', '2', `Min ${R.y1min} from 1st year`, c[1] >= R.y1min,
+    `Rule 2: no first-year member. At least ${R.y1min} required.`);
+
+  const girlLabel = { exactly: 'Exactly', atmost: 'At most', atleast: 'At least' }[R.girlMode];
+  const girlOk = R.girlMode === 'exactly' ? c.girls === R.girlN
+    : R.girlMode === 'atmost' ? c.girls <= R.girlN
+      : c.girls >= R.girlN;
+  const girlErr = R.girlMode === 'exactly'
+    ? `Rule 3: ${c.girls} girl${c.girls === 1 ? '' : 's'}, exactly ${R.girlN} required.`
+    : R.girlMode === 'atmost'
+      ? `Rule 3: ${c.girls} girls, at most ${R.girlN} allowed.`
+      : `Rule 3: ${c.girls} girls, at least ${R.girlN} required.`;
+  add('girls', '3', `${girlLabel} ${R.girlN} girl per team`, girlOk, girlErr);
+
+  add('y3', '4', `Max ${R.y3maxNo4} from 3rd year with no 4th`, !(c[4] === 0 && c[3] > R.y3maxNo4),
+    `Rule 4: ${c[3]} third-year members with no fourth-year present, at most ${R.y3maxNo4} allowed.`);
+
+  return { checks: out, c };
+}
+
 // Returns {errors:[], warnings:[]} for a team.
 export function validateTeam(team, R) {
-  const c = counts(team.people), e = [], w = [];
-  if (c.n < R.sizeMin) e.push(`Short by ${R.sizeMin - c.n}. Team has ${c.n}, needs ${R.sizeMin}.`);
-  if (c.n > R.sizeMax) e.push(`Over by ${c.n - R.sizeMax}. Team has ${c.n}, limit is ${R.sizeMax}.`);
-  if (c[4] > R.y4max) e.push(`Rule 1: ${c[4]} fourth-year members, at most ${R.y4max} allowed.`);
-  if (c[1] < R.y1min) e.push(`Rule 2: no first-year member. At least ${R.y1min} required.`);
-  if (R.girlMode === 'exactly' && c.girls !== R.girlN) e.push(`Rule 3: ${c.girls} girl${c.girls === 1 ? '' : 's'}, exactly ${R.girlN} required.`);
-  if (R.girlMode === 'atmost' && c.girls > R.girlN) e.push(`Rule 3: ${c.girls} girls, at most ${R.girlN} allowed.`);
-  if (R.girlMode === 'atleast' && c.girls < R.girlN) e.push(`Rule 3: ${c.girls} girls, at least ${R.girlN} required.`);
-  if (c[4] === 0 && c[3] > R.y3maxNo4) e.push(`Rule 4: ${c[3]} third-year members with no fourth-year present, at most ${R.y3maxNo4} allowed.`);
+  const { checks, c } = ruleChecks(team, R);
+  const e = checks.filter(x => !x.ok).map(x => x.error);
+  const w = [];
   if (c[0] > 0) w.push(`Year missing: ${team.people.filter(p => !p.year).map(p => p.name).join(', ')}`);
-  return { errors: e, warnings: w, c };
+  return { errors: e, warnings: w, c, checks };
 }
 
 // Why a student cannot join a team. null = allowed.

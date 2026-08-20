@@ -121,6 +121,39 @@ test('seats close up when the leader leaves, and the next member leads', opts, a
   assert.equal(t1c.people[0].role, 'Leader');
 });
 
+test('a student can be added straight into the pool', opts, async () => {
+  const { data: before } = await call('GET', '/api/state');
+
+  const { status, data } = await call('POST', '/api/students',
+    { name: 'Late Walkin', year: 2, girl: true, branch: 'ECE' });
+  assert.equal(status, 201);
+  assert.match(data.message, /added to the unassigned pool/);
+  assert.equal(data.state.pool.length, before.pool.length + 1);
+
+  const added = data.state.pool.find(p => p.id === data.id);
+  assert.ok(added, 'the new student should be in the pool');
+  assert.equal(added.name, 'Late Walkin');
+  assert.equal(added.year, 2);
+  assert.equal(added.girl, true);
+  assert.equal(added.branch, 'ECE');
+  // Added to the pool, never onto a team.
+  assert.equal(data.state.teams.some(t => t.people.some(p => p.id === data.id)), false);
+
+  // A year is optional; a name is not.
+  const bare = await call('POST', '/api/students', { name: 'No Year Known' });
+  assert.equal(bare.status, 201);
+  assert.equal(bare.data.state.pool.find(p => p.id === bare.data.id).year, null);
+
+  assert.equal((await call('POST', '/api/students', { name: '   ' })).status, 409);
+  assert.equal((await call('POST', '/api/students', { name: 'Bad Year', year: 7 })).status, 409);
+
+  // The refusals added nobody.
+  const { data: after } = await call('GET', '/api/state');
+  assert.equal(after.pool.length, before.pool.length + 2);
+
+  await call('POST', '/api/reset');
+});
+
 test('a student can be deleted outright from the pool', opts, async () => {
   const { data: before } = await call('GET', '/api/state');
   const victim = before.pool.find(p => p.name === 'Krishna Pal');
