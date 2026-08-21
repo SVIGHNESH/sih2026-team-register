@@ -3,8 +3,8 @@
 Registration and Participant Management for the RBCET internal round of Smart India Hackathon 2026.
 
 This is the server-backed version of `team-registry.html`.
-The interface is unchanged.
 What changed is where the register lives: it is a Postgres database instead of one browser's `localStorage`, so several coordinators see the same register and a change made on one laptop is visible on the others.
+The interface has since been redesigned around what the thing actually is, a register, and is described below.
 
 ## What it does
 
@@ -19,14 +19,19 @@ The rules themselves are documented in `../TEAM-REGISTER.md`, which still descri
 
 ## Reading the interface
 
-Each team card carries five pips, one per rule, in the order size, 1, 2, 3, 4.
-A red pip is a broken rule, so twenty cards can be scanned without reading a word.
+The interface is laid out as the thing it is, a register: ruled paper, a folio number on every entry, and the clerk's notes set in the margin.
+
+Under the masthead runs the balance line, one figure per column: teams on the register, how many are cleared, how many are flagged, students placed, girls placed, and how many are still waiting for a team.
+The short rule under the first figure splits green against red, so the state of the whole register is read before a single entry is.
+
+Each entry carries five pips, one per rule, in the order size, 1, 2, 3, 4.
+A red pip is a broken rule, so twenty entries can be scanned without reading a word.
 Hovering a pip names the rule and what went wrong.
 
-The coloured spine down the left edge of a card repeats the same thing at a glance: green cleared, red flagged, blue proposed.
-Year of study is shown as a four-step scale from light to dark rather than four unrelated colours, and rose is used for nothing except the `W` marker.
+The margin rule down the left edge of an entry repeats the same thing at a glance: moss cleared, oxblood flagged, lapis proposed.
+Year of study is shown as a four-step ramp from pale paper to deep ink rather than four unrelated colours, and madder rose is used for nothing except the `W` marker.
 
-The interface follows the system light or dark setting, and the button in the top bar overrides it per browser.
+The interface follows the system light or dark setting, and the button in the masthead overrides it per browser.
 
 ## Running it locally
 

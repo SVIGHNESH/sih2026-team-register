@@ -29,7 +29,11 @@ const ICON = {
   lead: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.4 5.3 5.6.6-4.2 3.9 1.2 5.7L12 15.7 7 18.5l1.2-5.7L4 8.9l5.6-.6z"/></svg>',
   move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5l-4 4 4 4M4 9h13M16 19l4-4-4-4M20 15H7"/></svg>',
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v13M6 13l6 6 6-6"/></svg>',
-  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg>',
+  blocked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5h.01"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L2.4 17.4A2 2 0 0 0 4.1 20.4h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 16.5h.01"/></svg>'
 };
 
 /* ---------- talking to the server ---------- */
@@ -105,7 +109,14 @@ $('#btn-theme').addEventListener('click', () => {
   const dark = root.dataset.theme
     ? root.dataset.theme === 'dark'
     : matchMedia('(prefers-color-scheme: dark)').matches;
+
+  // Every surface has a background transition for hover. Left alone they all
+  // run at once on a theme flip and the page crossfades through a muddle, so
+  // transitions are suspended for the one frame the swap takes.
+  root.classList.add('no-anim');
   root.dataset.theme = dark ? 'light' : 'dark';
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
+
   try { localStorage.setItem('sih-theme', root.dataset.theme); } catch (e) {}
 });
 
@@ -133,7 +144,7 @@ function dlgSignIn() {
          <label for="pw">Passcode</label>
          <input class="text" id="pw" type="password" autocomplete="current-password" placeholder="Given to the coordinators">
        </div>
-       <div id="pw-err" style="font-size:11.5px;color:var(--bad);min-height:16px;margin-bottom:8px"></div>
+       <div class="err" id="pw-err"></div>
        <div class="hint">Anyone can read the register. Only a signed-in coordinator can move a student, change a rule or import a sheet.</div>`,
       `<button class="btn ghost" data-close>Cancel</button><button class="btn accent" id="do-signin">Sign in</button>`);
 
@@ -196,26 +207,32 @@ function renderMetrics() {
   const v = state.teams.map(t => validateTeam(t, R));
   const ok = v.filter(x => x.errors.length === 0).length;
   const total = state.teams.length;
+  const flagged = total - ok;
   const placed = state.teams.reduce((a, t) => a + t.people.length, 0);
   const girls = state.teams.reduce((a, t) => a + t.people.filter(p => p.girl).length, 0);
-  const everyone = placed + state.pool.length;
+  const pct = n => total ? (n / total) * 100 : 0;
 
-  // Each metric carries a hairline bar showing its share, so the numbers
-  // have a shape as well as a value.
-  const rows = [
-    ['Teams on register', total, '', null],
-    ['Clear of all rules', ok, 'ok', total ? ok / total : 0],
-    ['Flagged', total - ok, (total - ok) ? 'bad' : '', total ? (total - ok) / total : 0],
-    ['Students placed', placed, '', everyone ? placed / everyone : 0],
-    ['Girls placed', girls, '', placed ? girls / placed : 0],
-    ['Awaiting a team', state.pool.length, state.pool.length ? 'bad' : 'ok', everyone ? state.pool.length / everyone : 0],
-  ];
-  $('#strip').innerHTML = rows.map(([k, val, cls, frac]) => `
-    <div class="metric ${cls}">
-      <div class="metric-k">${k}</div>
-      <div class="metric-v">${val}</div>
-      ${frac === null ? '' : `<div class="metric-bar"><i style="width:${Math.round(Math.min(1, frac) * 100)}%"></i></div>`}
-    </div>`).join('');
+  // The balance line: every figure the register is checked against, on one
+  // ruled row, so where it stands is read before a single card is.
+  const fig = (n, label, cls = '', of = '') =>
+    `<div class="figure ${cls}">
+       <span class="figure-n">${n}${of ? `<span class="figure-of">${of}</span>` : ''}</span>
+       <span class="figure-k">${label}</span>
+     </div>`;
+
+  $('#strip').innerHTML = `
+    <div class="figure">
+      <span class="figure-n">${total}</span>
+      <span class="figure-k">${total === 1 ? 'team on register' : 'teams on register'}</span>
+      <span class="figure-split" role="img" aria-label="${ok} of ${total} teams clear of all rules">
+        <i class="ok" style="width:${pct(ok)}%"></i><i class="bad" style="width:${pct(flagged)}%"></i>
+      </span>
+    </div>`
+    + fig(ok, 'cleared of all rules', 'ok', total ? ` / ${total}` : '')
+    + fig(flagged, 'flagged', flagged ? 'bad' : '')
+    + fig(placed, 'students placed')
+    + fig(girls, 'girls placed')
+    + fig(state.pool.length, 'awaiting a team', state.pool.length ? 'bad' : 'ok');
 }
 
 function renderRules() {
@@ -289,7 +306,7 @@ function renderTeams() {
     const rows = t.people.map((p, i) => `
       <div class="row ${p.role === 'Leader' ? 'lead' : ''}">
         <span class="row-i">${i + 1}</span>
-        <span class="row-name">${esc(p.name) || '<i style="color:var(--bad)">unnamed</i>'}</span>
+        <span class="row-name">${esc(p.name) || '<i class="unnamed">unnamed</i>'}</span>
         ${p.role === 'Leader' ? '<span class="row-lead-tag">Lead</span>' : ''}
         <span class="row-gap"></span>
         <button class="wbtn ${p.girl ? 'on' : 'off'}" data-act="wtoggle" data-s="${p.id}"
@@ -302,27 +319,29 @@ function renderTeams() {
         </span>
       </div>`).join('');
 
-    return `<article class="team ${t.draft ? 'draft' : ''} ${bad ? 'bad' : 'ok'}">
-      <div class="team-head">
-        <span class="team-no">${esc(t.no)}</span>
-        <div class="team-id">
-          <div class="team-role">${t.draft ? 'Proposed' : 'Team leader'}</div>
-          <div class="team-lead">${esc(lead ? lead.name : '-')}</div>
+    // A folio number is padded, the way a page number in a register is.
+    const folio = /^\d+$/.test(String(t.no)) ? String(t.no).padStart(2, '0') : String(t.no);
+
+    return `<article class="entry ${t.draft ? 'draft' : ''} ${bad ? 'bad' : 'ok'}">
+      <div class="entry-head">
+        <span class="folio">${esc(folio)}</span>
+        <div class="entry-id">
+          <span class="entry-kicker">${t.draft ? 'Proposed' : 'Team leader'}</span>
+          <div class="entry-lead">${esc(lead ? lead.name : '-')}</div>
         </div>
         <div class="pips">${pips}</div>
-        <button class="team-x" data-act="dissolve" data-t="${t.id}" title="Dissolve this team and return everyone to the pool">${ICON.x}</button>
+        <button class="entry-x" data-act="dissolve" data-t="${t.id}" title="Dissolve this team and return everyone to the pool">${ICON.x}</button>
       </div>
       <div class="roster">${rows}</div>
-      <div class="team-foot">
+      <div class="entry-foot">
         <div class="compo">
-          <span class="n">${c.n} members</span><span class="dot"></span>
+          <span class="n">${c.n} members</span>
           ${[1, 2, 3, 4].map(y => `<span class="tag${c[y] ? '' : ' zero'}">${YEAR_LABEL[y]} ${c[y]}</span>`).join('')}
-          ${c[0] ? `<span class="tag">? ${c[0]}</span>` : ''}
-          <span class="dot"></span><span class="tag w">W ${c.girls}</span>
+          <span class="tag w${c.girls ? '' : ' zero'}">W ${c.girls}</span>
         </div>
         ${(v.errors.length || v.warnings.length) ? `<div class="flags">
-          ${v.errors.map(e => `<div class="flag"><span>${esc(e)}</span></div>`).join('')}
-          ${v.warnings.map(e => `<div class="flag warn"><span>${esc(e)}</span></div>`).join('')}
+          ${v.errors.map(e => `<div class="flag">${ICON.alert}<span>${esc(e)}</span></div>`).join('')}
+          ${v.warnings.map(e => `<div class="flag warn">${ICON.warn}<span>${esc(e)}</span></div>`).join('')}
         </div>` : ''}
       </div>
     </article>`;
@@ -430,17 +449,17 @@ function dlgMove(id) {
     const why = blockedReason(t, s, R);
     const lead = t.people[0] ? t.people[0].name : '-';
     return `<button class="dest" data-t="${t.id}" ${why ? 'disabled' : ''}>
-      <span class="dest-mark">${why ? '&mdash;' : '&#10003;'}</span>
-      <span class="dest-main"><b>Team ${esc(t.no)}</b> <span style="color:var(--text-3)">${esc(lead)} &middot; ${plural(t.people.length, 'member')}</span></span>
+      <span class="dest-mark">${why ? ICON.blocked : ICON.check}</span>
+      <span class="dest-main"><b>Team ${esc(t.no)}</b> <span class="dest-sub">${esc(lead)} &middot; ${plural(t.people.length, 'member')}</span></span>
       ${why ? `<span class="dest-why">${esc(why)}</span>` : ''}
     </button>`;
   }).join('');
   const allowed = state.teams.filter(t => t !== f.team && !blockedReason(t, s, R)).length;
   openDlg(`Move ${s.name}${s.girl ? ' (W)' : ''}`,
-    `<div class="hint" style="margin-bottom:12px">${s.year ? YEAR_LABEL[s.year] + ' year' : 'Year not recorded'} &middot; ${allowed} of ${state.teams.length} teams can take this student without breaking a rule.${s.year ? '' : ' <b style="color:var(--bad)">Year is unknown, so rules 1 and 4 cannot be checked.</b>'}</div>`
+    `<div class="hint hint-top">${s.year ? YEAR_LABEL[s.year] + ' year' : 'Year not recorded'} &middot; ${allowed} of ${state.teams.length} teams can take this student without breaking a rule.${s.year ? '' : ' <b class="bad">Year is unknown, so rules 1 and 4 cannot be checked.</b>'}</div>`
     + opts
-    + (f.team ? `<button class="dest" data-t="pool"><span class="dest-mark">&#8595;</span><span class="dest-main">Unassigned pool</span></button>` : '')
-    + `<button class="dest danger" data-t="delete"><span class="dest-mark">&#10005;</span><span class="dest-main">Delete this record from the register</span><span class="dest-why">for duplicates</span></button>`,
+    + (f.team ? `<button class="dest" data-t="pool"><span class="dest-mark">${ICON.down}</span><span class="dest-main">Unassigned pool</span></button>` : '')
+    + `<button class="dest danger" data-t="delete"><span class="dest-mark">${ICON.x}</span><span class="dest-main">Delete this record from the register</span><span class="dest-why">for duplicates</span></button>`,
     `<button class="btn ghost" data-close>Cancel</button>`);
   $('#dlg-b').querySelectorAll('[data-t]').forEach(el => el.addEventListener('click', () => {
     const to = el.dataset.t;
@@ -459,7 +478,7 @@ function dlgDrop(id) {
     `<p><b>${esc(s.name)}</b>${s.girl ? ' (W)' : ''} &middot; ${s.year ? YEAR_LABEL[s.year] + ' year' : 'year not recorded'}${s.branch ? ' &middot; ' + esc(s.branch) : ''}
        leaves the register altogether. This is not the same as sending them back to the pool: the record is removed,
        and the only way back is to import the sheet again.</p>
-     <div class="hint" style="margin-top:12px">Use this for a duplicate, for someone who appears on a team and in the unassigned sheet at once, or for a student who has withdrawn.</div>`,
+     <div class="hint hint-after">Use this for a duplicate, for someone who appears on a team and in the unassigned sheet at once, or for a student who has withdrawn.</div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn danger" id="do-drop">Delete record</button>`);
   $('#dlg-f').querySelector('[data-close]').addEventListener('click', closeDlg);
   $('#do-drop').addEventListener('click', () => {
@@ -483,14 +502,14 @@ $('#btn-build').addEventListener('click', () => {
   const R = state.rules, cap = capacity(state.pool, R);
   if (!state.pool.length) return toast('The unassigned pool is empty.');
   openDlg('Auto-build teams from the unassigned pool',
-    `<div class="note" style="margin-top:0">
+    `<div class="note note-flush">
        <b>${cap.n}</b> students in the pool: ${cap.girls} girls, ${cap.nonGirls} boys, ${cap.y1} first-year.
        At ${R.sizeMin} per team the rules allow at most <b>${cap.max}</b> complete team${cap.max === 1 ? '' : 's'}.
        Binding constraint: <b>${esc(cap.binding.why)}</b>.
      </div>
-     <div class="field" style="margin-top:16px">
+     <div class="field field-gap">
        <label for="nteams">Number of teams to build</label>
-       <input class="inline" id="nteams" type="number" min="1" max="20" value="${Math.max(1, cap.max)}" style="width:64px">
+       <input class="inline wide" id="nteams" type="number" min="1" max="20" value="${Math.max(1, cap.max)}">
        <span class="hint">&nbsp;asking for more than ${cap.max} will produce teams that are flagged</span>
      </div>
      <div class="hint">
@@ -563,15 +582,15 @@ $('#btn-add').addEventListener('click', () => {
        </div>
      </div>
      <div class="field">
-       <label for="new-branch">Branch or note <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+       <label for="new-branch">Branch or note <span class="opt">(optional)</span></label>
        <input class="text" id="new-branch" placeholder="CSE + AI" autocomplete="off">
      </div>
      <div class="field">
        <button type="button" class="wswitch" id="new-girl" aria-pressed="false">
-         <span class="box">&#10003;</span> Mark as a girl ( W )
+         <span class="box">${ICON.check}</span> Mark as a girl ( W )
        </button>
      </div>
-     <div id="new-err" style="font-size:11.5px;color:var(--bad);min-height:16px"></div>
+     <div class="err" id="new-err"></div>
      <div class="hint">They join the pool, not a team. Place them from there, or let Auto-build do it.</div>`,
     `<button class="btn ghost" data-close>Cancel</button><button class="btn accent" id="do-add">Add student</button>`);
 

@@ -126,8 +126,12 @@ app.get('/api/audit', h(async (req, res) => {
 
 /* ---------- static frontend ---------- */
 
-app.use('/shared', express.static(`${ROOT}shared`, { maxAge: '1h' }));
-app.use(express.static(`${ROOT}public`, { maxAge: '1h', extensions: ['html'] }));
+// Nothing here is content-hashed, so a long max-age leaves a coordinator on a
+// stale interface for an hour after a deploy. Revalidate every load instead:
+// the ETag turns the repeat visit into a 304, which costs one round trip and
+// is worth it for a register a handful of people share.
+app.use('/shared', express.static(`${ROOT}shared`, { maxAge: 0, etag: true }));
+app.use(express.static(`${ROOT}public`, { maxAge: 0, etag: true, extensions: ['html'] }));
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'No such endpoint.' }));
 app.use((_req, res) => res.sendFile(`${ROOT}public/index.html`));
