@@ -41,18 +41,18 @@ Node 20 or newer, and a Postgres database.
 pnpm install
 docker compose up -d                 # or point DATABASE_URL at any Postgres
 cp .env.example .env                 # the default URL matches docker compose
-pnpm db:setup                        # creates the schema and loads the two sheets
+pnpm db:setup                        # creates the schema, writes no data
 pnpm dev                             # http://localhost:3000
 ```
 
-`pnpm db:setup` seeds only an empty database.
-`pnpm db:reset` reloads the shipped sheets over whatever is there.
+`pnpm db:setup` only creates the schema and reports what the register holds.
+It never writes register data: a new register starts empty and is filled from the interface.
 
 ```bash
 pnpm test        # 23 tests: the rules engine, and the API against a real database
 ```
 
-The API tests reset the register, so point `DATABASE_URL` at a scratch database when running them.
+The API tests overwrite the register with their own fixtures, so point `DATABASE_URL` at a scratch database when running them.
 They skip themselves entirely when `DATABASE_URL` is unset, and they sign themselves in when `ADMIN_PASSWORD` is set, so the suite passes either way.
 
 ## Who can change the register
@@ -103,7 +103,7 @@ Seat 0 is the leader, and seats close up when anyone leaves.
 | POST | `/api/teams/confirm` | proposals join the register and are renumbered |
 | PUT | `/api/rules` | the five editable numbers |
 | POST | `/api/import` | `{teamsCsv, poolCsv}`, either may be empty |
-| POST | `/api/reset` | reload the shipped sheets |
+| POST | `/api/reset` | delete every team and student, leaving the register empty |
 | POST / DELETE | `/api/session` | sign in, sign out |
 
 Everything that changes the register needs the passcode when one is set.
@@ -216,10 +216,12 @@ The app is not tied to any of this.
 `src/server.js` is a plain Node process that needs `DATABASE_URL`, so it runs on Render, Fly, or a bare VPS with no changes.
 
 `api/index.js` and `vercel.json` are set up for Vercel against a Neon database.
-That path is configured but has not been deployed and verified, and it needs `pnpm db:setup` run against Neon before the first deploy, because a serverless function has no boot step to seed from.
+That path is configured but has not been deployed and verified, and it needs `pnpm db:setup` run against Neon before the first deploy, because a serverless function has no boot step to create the schema.
 
 ## Where the data comes from
 
-`data/teams.csv` and `data/pool.csv` are the two sheets as originally shipped, and are what Reset restores.
-Replace them to change what a fresh database is seeded with.
-To load newer sheets into a running register, use Import rather than editing these files.
+Nothing is shipped in.
+A fresh database gives you an empty register, and you fill it either by pasting the two sheets into Import or by adding students to the unassigned pool one at a time.
+
+`test/fixtures/teams.csv` and `test/fixtures/pool.csv` are a real pair of sheets kept only so the test suite has something to work against.
+They are never loaded by the application.

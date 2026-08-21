@@ -1,6 +1,5 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
-import { readFile } from 'node:fs/promises';
 import { parseTeams, parsePool, toCSV, sanitiseRules } from '../shared/domain.js';
 import * as repo from './repo.js';
 import { pool as pgPool } from './db.js';
@@ -9,11 +8,6 @@ import {
 } from './auth.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SEED = {
-  teams: () => readFile(new URL('../data/teams.csv', import.meta.url), 'utf8'),
-  pool: () => readFile(new URL('../data/pool.csv', import.meta.url), 'utf8')
-};
-
 export const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -112,10 +106,8 @@ app.post('/api/import', requireAdmin, h(async (req, res) => {
 }));
 
 app.post('/api/reset', requireAdmin, h(async (_req, res) => {
-  const state = await repo.replaceRegister(
-    { teams: parseTeams(await SEED.teams()), pool: parsePool(await SEED.pool()) }, 'reset'
-  );
-  res.json({ state, message: 'Register reset to the original sheets.' });
+  const state = await repo.replaceRegister({ teams: [], pool: [] }, 'reset');
+  res.json({ state, message: 'Register emptied. Import a sheet or add students to start again.' });
 }));
 
 app.get('/api/audit', h(async (req, res) => {

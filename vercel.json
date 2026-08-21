@@ -3,7 +3,7 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.js": {
-      "includeFiles": "{public,shared,data}/**"
+      "includeFiles": "{public,shared}/**"
     }
   }
 }

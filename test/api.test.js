@@ -4,6 +4,14 @@
 import 'dotenv/config';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+// The application ships no data, so the suite loads its own sheets through the
+// import endpoint before each test that needs a populated register.
+const fixtures = {
+  teamsCsv: await readFile(new URL('./fixtures/teams.csv', import.meta.url), 'utf8'),
+  poolCsv: await readFile(new URL('./fixtures/pool.csv', import.meta.url), 'utf8')
+};
 
 const live = Boolean(process.env.DATABASE_URL);
 let server, base, app, pool, cookie = '';
@@ -32,7 +40,7 @@ before(async () => {
     assert.ok(cookie, 'sign-in returned no session cookie');
   }
 
-  await call('POST', '/api/reset');
+  await seed();
 });
 
 after(async () => {
@@ -40,6 +48,12 @@ after(async () => {
   await new Promise(r => server.close(r));
   await pool.end();
 });
+
+// Puts the register back to a known 18 teams / 31 unassigned.
+async function seed() {
+  const { status } = await call('POST', '/api/import', fixtures);
+  assert.equal(status, 200, 'could not load the test fixtures');
+}
 
 async function call(method, path, body) {
   const headers = {};
@@ -151,7 +165,7 @@ test('a student can be added straight into the pool', opts, async () => {
   const { data: after } = await call('GET', '/api/state');
   assert.equal(after.pool.length, before.pool.length + 2);
 
-  await call('POST', '/api/reset');
+  await seed();
 });
 
 test('a student can be deleted outright from the pool', opts, async () => {
@@ -170,7 +184,7 @@ test('a student can be deleted outright from the pool', opts, async () => {
   assert.equal(after.pool.some(p => p.name === 'Krishna Pal'), false);
   assert.equal((await call('POST', `/api/students/${victim.id}/move`, { to: 'delete' })).status, 404);
 
-  await call('POST', '/api/reset');
+  await seed();
 });
 
 test('changing a rule re-flags the register', opts, async () => {
@@ -219,10 +233,11 @@ test('export writes a CSV the register can read back', opts, async () => {
   );
 });
 
-test('reset puts the shipped sheets back', opts, async () => {
+test('reset empties the register', opts, async () => {
   const { data } = await call('POST', '/api/reset');
-  assert.equal(data.state.teams.length, 18);
-  assert.equal(data.state.pool.length, 31);
+  assert.equal(data.state.teams.length, 0);
+  assert.equal(data.state.pool.length, 0);
+  await seed();
 });
 
 test('the passcode gate matches how this deployment is configured', opts, async () => {

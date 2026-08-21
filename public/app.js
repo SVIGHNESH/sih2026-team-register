@@ -293,7 +293,15 @@ function renderTeams() {
   $('#teams-count').textContent = `${list.length} of ${state.teams.length}`;
   $$('#filters button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filter === filter)));
 
-  if (!list.length) { $('#teams').innerHTML = `<div class="empty">No teams match this filter.</div>`; return; }
+  if (!list.length) {
+    // A register with nothing in it at all is the first thing a coordinator
+    // sees, so say what to do next rather than reporting an empty filter.
+    const blank = !state.teams.length && !state.pool.length;
+    $('#teams').innerHTML = blank
+      ? `<div class="empty">Nothing on the register yet.<br>Paste your two sheets into <b>Import</b>, or use <b>Add student</b> to start the unassigned pool.</div>`
+      : `<div class="empty">No teams match this filter.</div>`;
+    return;
+  }
 
   $('#teams').innerHTML = list.map(t => {
     const v = validateTeam(t, R), c = v.c, bad = v.errors.length > 0;
@@ -350,7 +358,10 @@ function renderTeams() {
 
 function renderPool() {
   $('#pool-n').textContent = plural(state.pool.length, 'student');
-  if (!state.pool.length) { $('#pool').innerHTML = `<div class="empty">Everyone has a team.</div>`; return; }
+  if (!state.pool.length) {
+    $('#pool').innerHTML = `<div class="empty">${state.teams.length ? 'Everyone has a team.' : 'No students yet.'}</div>`;
+    return;
+  }
   const groups = [[4, 'Final / 4th year'], [3, '3rd year'], [2, '2nd year'], [1, '1st year'], [0, 'Year not recorded']];
   $('#pool').innerHTML = groups.map(([y, label]) => {
     const g = state.pool.filter(s => (s.year || 0) === y);
@@ -622,9 +633,9 @@ $('#btn-export').addEventListener('click', () => {
 });
 
 $('#btn-reset').addEventListener('click', () => {
-  openDlg('Reset the register',
-    `<p>This discards every move, proposed team and year recorded in the database, and reloads the two sheets exactly as they were shipped. It affects everyone using the register, not just this tab.</p>`,
-    `<button class="btn ghost" data-close>Cancel</button><button class="btn danger" id="do-reset">Reset everything</button>`);
+  openDlg('Empty the register',
+    `<p>This deletes every team, student and proposal in the database and leaves the register blank, ready to be filled from a fresh sheet. It affects everyone using the register, not just this tab. Export a CSV first if you want a copy.</p>`,
+    `<button class="btn ghost" data-close>Cancel</button><button class="btn danger" id="do-reset">Empty the register</button>`);
   $('#dlg-f').querySelector('[data-close]').addEventListener('click', closeDlg);
   $('#do-reset').addEventListener('click', () => { closeDlg(); act('/api/reset', { method: 'POST' }); });
 });

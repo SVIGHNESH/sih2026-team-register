@@ -6,12 +6,12 @@ import {
   autoBuild, toCSV, DEFAULT_RULES, sanitiseRules, readName, normYear
 } from '../shared/domain.js';
 
-const teamsCsv = await readFile(new URL('../data/teams.csv', import.meta.url), 'utf8');
-const poolCsv = await readFile(new URL('../data/pool.csv', import.meta.url), 'utf8');
+const teamsCsv = await readFile(new URL('./fixtures/teams.csv', import.meta.url), 'utf8');
+const poolCsv = await readFile(new URL('./fixtures/pool.csv', import.meta.url), 'utf8');
 const R = DEFAULT_RULES;
 const withIds = list => list.map((p, i) => ({ ...p, id: i + 1 }));
 
-test('the shipped teams sheet reads back as 18 teams', () => {
+test('a real teams sheet reads back as 18 teams', () => {
   const teams = parseTeams(teamsCsv);
   assert.equal(teams.length, 18);
   assert.equal(teams[0].no, '1');
@@ -27,7 +27,7 @@ test('a ( W ) marker and a year hint are read off the name', () => {
   assert.equal(normYear(''), null);
 });
 
-test('nine of the eighteen shipped teams break a rule', () => {
+test('nine of the eighteen teams in that sheet break a rule', () => {
   const flagged = parseTeams(teamsCsv).filter(t => validateTeam(t, R).errors.length);
   assert.equal(flagged.length, 9);
   const byNo = Object.fromEntries(flagged.map(t => [t.no, validateTeam(t, R).errors.join(' ')]));
